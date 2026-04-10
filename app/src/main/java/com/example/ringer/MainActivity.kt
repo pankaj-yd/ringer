@@ -92,10 +92,41 @@ class MainActivity : AppCompatActivity() {
             startRingerService()
             saveServiceState(true)
             requestIgnoreBatteryOptimizations()
+            showAutoStartSettings()
         } else {
             serviceToggle.isChecked = false
             saveServiceState(false)
             requestNotificationPolicyAccess()
+        }
+    }
+
+    private fun showAutoStartSettings() {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val intent = Intent()
+        try {
+            when {
+                manufacturer.contains("oppo") || manufacturer.contains("realme") -> {
+                    intent.setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")
+                    startActivity(intent)
+                    Toast.makeText(this, "Please enable 'Auto-start' for Ringer", Toast.LENGTH_LONG).show()
+                }
+                manufacturer.contains("vivo") -> {
+                    intent.setClassName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")
+                    startActivity(intent)
+                }
+                manufacturer.contains("xiaomi") -> {
+                    intent.setClassName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")
+                    startActivity(intent)
+                }
+            }
+        } catch (e: Exception) {
+            // Fallback for newer Oppo/Realme versions or if activity name changed
+            try {
+                intent.setClassName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity")
+                startActivity(intent)
+            } catch (ex: Exception) {
+                // Ignore if not found
+            }
         }
     }
 
