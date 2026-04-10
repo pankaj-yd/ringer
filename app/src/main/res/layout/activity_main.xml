@@ -13,16 +13,11 @@
         android:textSize="24sp"
         android:layout_marginBottom="32dp"/>
 
-    <Button
-        android:id="@+id/btnStart"
-        android:layout_width="match_parent"
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/serviceToggle"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Start Service" />
-
-    <Button
-        android:id="@+id/btnStop"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Stop Service" />
+        android:text="Always Ringer Mode"
+        android:textSize="18sp" />
 
 </LinearLayout>

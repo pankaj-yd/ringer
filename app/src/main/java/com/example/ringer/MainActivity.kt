@@ -1,6 +1,7 @@
 package com.example.ringer
 
 import android.Manifest
+import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -8,13 +9,15 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.google.android.material.switchmaterial.SwitchMaterial
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var serviceToggle: SwitchMaterial
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -22,6 +25,7 @@ class MainActivity : AppCompatActivity() {
         if (isGranted) {
             checkAndStartService()
         } else {
+            serviceToggle.isChecked = false
             Toast.makeText(this, "Notification permission required for foreground service", Toast.LENGTH_LONG).show()
         }
     }
@@ -30,31 +34,80 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val btnStart = findViewById<Button>(R.id.btnStart)
-        val btnStop = findViewById<Button>(R.id.btnStop)
+        serviceToggle = findViewById(R.id.serviceToggle)
+        serviceToggle.isChecked = isServiceRunning()
 
-        btnStart.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        serviceToggle.setOnCheckedChangeListener { _, isChecked ->
+            saveServiceState(isChecked)
+            if (isChecked) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        checkAndStartService()
+                    }
                 } else {
                     checkAndStartService()
                 }
             } else {
-                checkAndStartService()
+                stopRingerService()
             }
         }
+    }
 
-        btnStop.setOnClickListener {
-            stopRingerService()
+    private fun saveServiceState(isEnabled: Boolean) {
+        val sharedPref = getSharedPreferences("ringer_prefs", Context.MODE_PRIVATE)
+        with(sharedPref.edit()) {
+            putBoolean("service_enabled", isEnabled)
+            apply()
         }
+    }
+
+    private fun getSavedServiceState(): Boolean {
+        val sharedPref = getSharedPreferences("ringer_prefs", Context.MODE_PRIVATE)
+        return sharedPref.getBoolean("service_enabled", false)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        serviceToggle.isChecked = isServiceRunning() || getSavedServiceState()
+        // If it should be running but isn't (e.g. killed), restart it
+        if (getSavedServiceState() && !isServiceRunning()) {
+            checkAndStartService()
+        }
+    }
+
+    private fun isServiceRunning(): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        for (service in manager.getRunningServices(Int.MAX_VALUE)) {
+            if (RingerService::class.java.name == service.service.className) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun checkAndStartService() {
         if (checkNotificationPolicyAccess()) {
             startRingerService()
+            saveServiceState(true)
+            requestIgnoreBatteryOptimizations()
         } else {
+            serviceToggle.isChecked = false
+            saveServiceState(false)
             requestNotificationPolicyAccess()
+        }
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = android.net.Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
         }
     }
 
